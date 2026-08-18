@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { verifyGeminiApiKey } from '../services/geminiApiService';
 
 interface ApiKeyContextType {
   apiKey: string;
@@ -32,31 +33,23 @@ export const ApiKeyProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setVerificationError(null);
 
     try {
-      const response = await fetch('/api/verify-key', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ apiKey: trimmedKey }),
-      });
+      const result = await verifyGeminiApiKey(trimmedKey);
 
-      const data = await response.json();
-
-      if (response.ok && data.valid) {
+      if (result.valid) {
         setApiKey(trimmedKey);
         setIsKeyVerified(true);
-        setVerifiedModel(data.model || 'gemini-2.5-flash');
+        setVerifiedModel(result.model || 'gemini-2.5-flash');
         setVerificationError(null);
         return true;
       } else {
         setIsKeyVerified(false);
-        setVerificationError(data.error || 'API Key 승인에 실패하였습니다.');
+        setVerificationError(result.error || 'API Key 승인에 실패하였습니다.');
         return false;
       }
     } catch (err: any) {
       setIsKeyVerified(false);
       setVerificationError(
-        '백엔드 검증 서버와 통신하는 중 오류가 발생했습니다. 네트워크 연결 상태를 확인해 주세요.'
+        'API Key 검증 중 오류가 발생했습니다. 키 값을 확인하고 다시 시도해 주세요.'
       );
       return false;
     } finally {

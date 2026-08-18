@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MrpCalculationOutput } from '../types';
 import { Sparkles, X, Loader2, Bot, Send } from 'lucide-react';
 import { useApiKey } from '../context/ApiKeyContext';
+import { getGeminiAdvisorAdvice } from '../services/geminiApiService';
 
 interface AiAdvisorModalProps {
   isOpen: boolean;
@@ -14,7 +15,7 @@ export const AiAdvisorModal: React.FC<AiAdvisorModalProps> = ({
   onClose,
   mrpData,
 }) => {
-  const { getAuthHeaders, isKeyVerified } = useApiKey();
+  const { apiKey, isKeyVerified } = useApiKey();
   const [query, setQuery] = useState('');
   const [advice, setAdvice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,31 +28,22 @@ export const AiAdvisorModal: React.FC<AiAdvisorModalProps> = ({
     setAdvice(null);
 
     try {
-      const response = await fetch('/api/gemini/advisor', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
+      const adviceText = await getGeminiAdvisorAdvice(
+        {
           mrpSummary: mrpData.summary,
           criticalMaterials: mrpData.materialAnalysis.filter((m) => m.riskLevel === 'Critical' || m.riskLevel === 'High'),
           allocations: mrpData.productionAllocation,
           userQuestion: activeQuery || '전체 반도체 공급망 리스크에 대한 종합 최적화 및 조달 대응 방안을 제시해주세요.',
-        }),
-      });
+        },
+        apiKey
+      );
 
-      if (response.ok) {
-        const data = await response.json();
-        setAdvice(data.advice || '분석 결과를 도출하지 못했습니다.');
-      } else {
-        const errData = await response.json().catch(() => ({}));
-        setAdvice(
-          errData.error ||
-          'AI 분석 자문 생성 중 응답 지연이 발생하였습니다. 시스템 내장 조달 계획(Section 6)을 참고하여 Critical 자재에 대해 즉시 긴급 발주(Expedite) 및 공급사 할당(Allocation) 협상을 추진하십시오.'
-        );
-      }
-    } catch (err) {
+      setAdvice(adviceText || '분석 결과를 도출하지 못했습니다.');
+    } catch (err: any) {
       console.error(err);
       setAdvice(
-        '서버 연결 상태를 확인해주십시오. Critical 자재에 대해 1순위 제품 우선 배분 및 안전재고 일시 전용 전략을 검토하십시오.'
+        err?.message ||
+        'AI 분석 자문 생성 중 응답 지연이 발생하였습니다. 시스템 내장 조달 계획(Section 6)을 참고하여 Critical 자재에 대해 즉시 긴급 발주(Expedite) 및 공급사 할당(Allocation) 협상을 추진하십시오.'
       );
     } finally {
       setIsLoading(false);

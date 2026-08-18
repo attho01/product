@@ -16,6 +16,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useApiKey } from '../context/ApiKeyContext';
+import { parseInputWithGemini } from '../services/geminiApiService';
 
 interface FastPathViewProps {
   productionPlans: ProductionPlanItem[];
@@ -42,7 +43,7 @@ export const FastPathView: React.FC<FastPathViewProps> = ({
   onGoToDashboard,
   onGoToWizardStep,
 }) => {
-  const { getAuthHeaders } = useApiKey();
+  const { getAuthHeaders, apiKey } = useApiKey();
   const [rawText, setRawText] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   const [parsedSummary, setParsedSummary] = useState<string | null>(null);
@@ -209,70 +210,63 @@ Product_Server_MCU — 3순위 (일반) / 통신 장비`;
     setIsSuccess(false);
 
     try {
-      const res = await fetch('/api/gemini/parse-input', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ rawText }),
-      });
+      const data = await parseInputWithGemini(rawText, apiKey);
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.productionPlans && data.productionPlans.length > 0) {
-          setProductionPlans(
-            data.productionPlans.map((p: any, i: number) => ({
-              id: `plan-ai-${i}`,
-              productId: p.productId,
-              targetQty: Number(p.targetQty) || 5000,
-              unit: p.unit || 'EA',
-              dueDate: p.dueDate || '2026-09-30',
-              customer: p.customer || '',
-            }))
-          );
-        }
-        if (data.boms && data.boms.length > 0) {
-          setBoms(
-            data.boms.map((b: any, i: number) => ({
-              id: `bom-ai-${i}`,
-              productId: b.productId,
-              materialId: b.materialId,
-              unitUsage: Number(b.unitUsage) || 1.0,
-              unit: b.unit || 'EA',
-              yield: Number(b.yield) || 100,
-              scrapRate: Number(b.scrapRate) || 0,
-              alternativeAvailable: Boolean(b.alternativeAvailable),
-            }))
-          );
-        }
-        if (data.inventory && data.inventory.length > 0) {
-          setInventory(
-            data.inventory.map((inv: any, i: number) => ({
-              id: `inv-ai-${i}`,
-              materialId: inv.materialId,
-              onHand: Number(inv.onHand) || 0,
-              unit: inv.unit || 'EA',
-              scheduledReceipt: Number(inv.scheduledReceipt) || 0,
-              safetyStock: Number(inv.safetyStock) || 0,
-            }))
-          );
-        }
-        if (data.priorities && data.priorities.length > 0) {
-          setPriorities(
-            data.priorities.map((p: any, i: number) => ({
-              id: `prio-ai-${i}`,
-              productId: p.productId,
-              priorityLevel: Number(p.priorityLevel) || 2,
-              isUrgent: Boolean(p.isUrgent),
-              reason: p.reason || '',
-            }))
-          );
-        }
-
-        setParsedSummary(data.summary || '일괄 텍스트 데이터의 구조화가 완료되었습니다.');
-        setMissingGroups(data.missingGroups || []);
-        setIsSuccess(true);
-        setIsAiLoading(false);
-        return;
+      if (data && data.productionPlans && data.productionPlans.length > 0) {
+        setProductionPlans(
+          data.productionPlans.map((p: any, i: number) => ({
+            id: `plan-ai-${i}`,
+            productId: p.productId,
+            targetQty: Number(p.targetQty) || 5000,
+            unit: p.unit || 'EA',
+            dueDate: p.dueDate || '2026-09-30',
+            customer: p.customer || '',
+          }))
+        );
       }
+      if (data && data.boms && data.boms.length > 0) {
+        setBoms(
+          data.boms.map((b: any, i: number) => ({
+            id: `bom-ai-${i}`,
+            productId: b.productId,
+            materialId: b.materialId,
+            unitUsage: Number(b.unitUsage) || 1.0,
+            unit: b.unit || 'EA',
+            yield: Number(b.yield) || 100,
+            scrapRate: Number(b.scrapRate) || 0,
+            alternativeAvailable: Boolean(b.alternativeAvailable),
+          }))
+        );
+      }
+      if (data && data.inventory && data.inventory.length > 0) {
+        setInventory(
+          data.inventory.map((inv: any, i: number) => ({
+            id: `inv-ai-${i}`,
+            materialId: inv.materialId,
+            onHand: Number(inv.onHand) || 0,
+            unit: inv.unit || 'EA',
+            scheduledReceipt: Number(inv.scheduledReceipt) || 0,
+            safetyStock: Number(inv.safetyStock) || 0,
+          }))
+        );
+      }
+      if (data && data.priorities && data.priorities.length > 0) {
+        setPriorities(
+          data.priorities.map((p: any, i: number) => ({
+            id: `prio-ai-${i}`,
+            productId: p.productId,
+            priorityLevel: Number(p.priorityLevel) || 2,
+            isUrgent: Boolean(p.isUrgent),
+            reason: p.reason || '',
+          }))
+        );
+      }
+
+      setParsedSummary(data?.summary || '일괄 텍스트 데이터의 구조화가 완료되었습니다.');
+      setMissingGroups(data?.missingGroups || []);
+      setIsSuccess(true);
+      setIsAiLoading(false);
+      return;
     } catch (err) {
       console.warn('AI Parser endpoint not reachable, running deterministic local parser:', err);
     }
